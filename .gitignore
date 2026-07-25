@@ -1,0 +1,106 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.pytest_cache/
+htmlcov/
+coverage/
+.coverage
+.coverage.*
+.mypy_cache/
+.ruff_cache/
+*.pyo
+*.pyd
+
+# ===== Virtual Environment =====
+.venv/
+venv/
+env/
+ENV/
+.virtualenv/
+
+# ===== Environment Variables =====
+.env
+.env.*
+!.env.example
+
+# ===== Node =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ===== Frontend Build =====
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/.turbo/
+frontend/.cache/
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project
+
+# ===== OS Files =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
+
+# ===== Docker =====
+docker-compose.override.yml
+
+# ===== Database =====
+*.sqlite3
+*.db
+
+# ===== Celery =====
+celerybeat-schedule
+celerybeat.pid
+celerybeat-schedule.db
+
+# ===== Django =====
+media/
+staticfiles/
+backend/static/
+backend/media/
+backend/storage/
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Testing =====
+.tox/
+.nox/
+junit.xml
+test-results/
+
+# ===== AI/ML Models (too large for git) =====
+*.bin
+*.h5
+*.pt
+*.onnx
+models/
+
+# ===== Temporary =====
+tmp/
+temp/
+*.tmp
+
+# ===== Misc =====
+preplan.md
