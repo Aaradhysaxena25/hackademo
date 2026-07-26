@@ -187,3 +187,110 @@ class RepositoryFilesView(APIView):
         serializer = RepositoryFileSerializer(page, many=True)
 
         return paginator.get_paginated_response(serializer.data)
+
+
+class RepositoryUploadView(APIView):
+    """
+    POST /api/v1/repositories/upload/  — Upload a ZIP file to create a repository
+
+    Accepts multipart/form-data with:
+    - name: repository name
+    - file: ZIP/TAR archive
+    - description: (optional)
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import os
+        import tempfile
+        import zipfile
+        import tarfile
+
+        name = request.data.get("name")
+        file = request.FILES.get("file")
+        description = request.data.get("description", "")
+
+        if not name or not file:
+            return Response(
+                {"status": "error", "message": "Name and file are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate file size (max 500MB)
+        if file.size > 500 * 1024 * 1024:
+            return Response(
+                {"status": "error", "message": "File too large. Maximum 500MB."},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        # Validate file type
+        allowed = (".zip", ".tar", ".tar.gz", ".tgz")
+        if not file.name.lower().endswith(allowed):
+            return Response(
+                {"status": "error", "message": f"Unsupported file type. Allowed: {', '.join(allowed)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Create repository record
+        repo = Repository.objects.create(
+            owner=request.user,
+            name=name.strip(),
+            description=description,
+            source_type="upload",
+            status="pending",
+        )
+
+        # Save file to temp location
+        storage_dir = os.path.join(
+            tempfile.gettempdir(), "codepilot_repos", str(repo.id)
+        )
+        os.makedirs(storage_dir, exist_ok=True)
+
+        # Extract archive
+        try:
+            temp_path = os.path.join(storage_dir, file.name)
+            with open(temp_path, "wb") as f:
+                for chunk in file.chunks():
+                    f.write(chunk)
+
+            extract_dir = os.path.join(storage_dir, "source")
+            os.makedirs(extract_dir, exist_ok=True)
+
+            if file.name.lower().endswith(".zip"):
+                with zipfile.ZipFile(temp_path, "r") as zf:
+                    zf.extractall(extract_dir)
+            elif file.name.lower().endswith((".tar", ".tar.gz", ".tgz")):
+                with tarfile.open(temp_path, "r:*") as tf:
+                    tf.extractall(extract_dir)
+
+            # Clean up archive file
+            os.remove(temp_path)
+
+            # Find actual root (might be nested in single folder)
+            contents = os.listdir(extract_dir)
+            if len(contents) == 1 and os.path.isdir(os.path.join(extract_dir, contents[0])):
+                repo_path = os.path.join(extract_dir, contents[0])
+            else:
+                repo_path = extract_dir
+
+            # Trigger indexing
+            from apps.indexing.tasks import index_repository_task
+            index_repository_task.delay(str(repo.id), repo_path)
+
+        except (zipfile.BadZipFile, tarfile.TarError):
+            repo.status = "error"
+            repo.save(update_fields=["status"])
+            return Response(
+                {"status": "error", "message": "Invalid archive file."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "status": "success",
+                "data": RepositoryDetailSerializer(repo).data,
+                "message": "Repository uploaded. Indexing started.",
+            },
+            status=status.HTTP_201_CREATED,
+        )

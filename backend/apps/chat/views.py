@@ -217,3 +217,102 @@ class MessageListView(APIView):
         messages = conversation.messages.all()
         serializer = MessageSerializer(messages, many=True)
         return Response({"status": "success", "data": serializer.data})
+
+
+class StreamMessageView(APIView):
+    """
+    POST /api/v1/chat/conversations/{id}/messages/stream/
+
+    Send a message and receive the AI response via Server-Sent Events (SSE).
+    Returns a streaming response with chunked tokens.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        import json
+        from django.http import StreamingHttpResponse
+
+        conversation = get_object_or_404(Conversation, pk=pk, user=request.user)
+
+        content = request.data.get("content", "").strip()
+        if not content:
+            return Response(
+                {"status": "error", "message": "Message cannot be empty."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Save user message
+        user_message = Message.objects.create(
+            conversation=conversation,
+            role="user",
+            content=content,
+        )
+
+        # Get conversation history
+        history_messages = Message.objects.filter(
+            conversation=conversation
+        ).exclude(id=user_message.id).order_by("-created_at")[:6]
+
+        conversation_history = [
+            {"role": msg.role, "content": msg.content}
+            for msg in reversed(list(history_messages))
+        ]
+
+        # Set up RAG pipeline
+        from django.conf import settings as django_settings
+        if django_settings.OPENAI_API_KEY:
+            provider = get_llm_provider("openai")
+        else:
+            provider = get_llm_provider("mock", response="This is a streaming mock response. Configure OPENAI_API_KEY for real AI responses.")
+
+        pipeline = RAGPipeline(llm_provider=provider)
+
+        repository_name = conversation.repository.name if conversation.repository else ""
+        repository_id = str(conversation.repository_id) if conversation.repository_id else ""
+
+        def event_stream():
+            full_content = ""
+            sources = []
+
+            try:
+                for event in pipeline.generate_response_stream(
+                    query=content,
+                    repository_id=repository_id,
+                    conversation_history=conversation_history,
+                    repository_name=repository_name,
+                ):
+                    if event["type"] == "chunk":
+                        full_content += event["content"]
+                        yield f"data: {json.dumps(event)}\n\n"
+                    elif event["type"] == "sources":
+                        sources = event["sources"]
+                        yield f"data: {json.dumps(event)}\n\n"
+                    elif event["type"] == "done":
+                        # Save assistant message
+                        Message.objects.create(
+                            conversation=conversation,
+                            role="assistant",
+                            content=full_content,
+                            context_chunks=sources,
+                            token_count=event.get("token_count", 0),
+                            model_used=event.get("model_used", ""),
+                        )
+                        # Update title if first message
+                        if conversation.title == "New Conversation":
+                            conversation.title = content[:50]
+                            conversation.save(update_fields=["title", "updated_at"])
+
+                        yield f"data: {json.dumps(event)}\n\n"
+
+            except Exception as e:
+                logger.error(f"SSE stream error: {e}")
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+        response = StreamingHttpResponse(
+            event_stream(),
+            content_type="text/event-stream",
+        )
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response

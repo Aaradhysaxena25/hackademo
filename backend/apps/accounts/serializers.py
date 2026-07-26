@@ -22,6 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
             "last_name",
             "github_username",
             "avatar_url",
+            "is_verified",
             "subscription_plan",
             "created_at",
         ]

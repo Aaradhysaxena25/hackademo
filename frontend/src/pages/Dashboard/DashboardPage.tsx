@@ -1,17 +1,37 @@
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { FolderGit2, MessageSquare, Search, FileCode, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
-const stats = [
-  { label: 'Repositories', value: '5', icon: FolderGit2, color: 'text-blue-500' },
-  { label: 'Conversations', value: '12', icon: MessageSquare, color: 'text-green-500' },
-  { label: 'Searches', value: '48', icon: Search, color: 'text-purple-500' },
-  { label: 'Code Chunks', value: '2.4K', icon: FileCode, color: 'text-orange-500' },
-];
+import { analyticsService } from '@/services/analytics';
+import { repositoryService } from '@/services/repositories';
 
 export default function DashboardPage() {
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const res = await analyticsService.getDashboardStats();
+      return res.data.data;
+    },
+  });
+
+  const { data: reposData, isLoading: reposLoading } = useQuery({
+    queryKey: ['repositories'],
+    queryFn: async () => {
+      const res = await repositoryService.list();
+      return res.data;
+    },
+  });
+
+  const statCards = [
+    { label: 'Repositories', value: stats?.total_repositories ?? 0, icon: FolderGit2, color: 'text-blue-500' },
+    { label: 'Conversations', value: stats?.total_conversations ?? 0, icon: MessageSquare, color: 'text-green-500' },
+    { label: 'Searches', value: stats?.total_searches ?? 0, icon: Search, color: 'text-purple-500' },
+    { label: 'Code Chunks', value: stats?.total_chunks ?? 0, icon: FileCode, color: 'text-orange-500' },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -26,70 +46,64 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statCards.map((stat) => (
           <Card key={stat.label}>
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-2xl font-bold">{stat.value}</p>
+              {statsLoading ? (
+                <Skeleton className="h-12 w-full" />
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">{stat.label}</p>
+                    <p className="text-2xl font-bold">{stat.value}</p>
+                  </div>
+                  <stat.icon className={`h-8 w-8 ${stat.color} opacity-80`} />
                 </div>
-                <stat.icon className={`h-8 w-8 ${stat.color} opacity-80`} />
-              </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Recent Repos and Activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Repositories</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { name: 'my-project', status: 'ready', lang: 'Python' },
-              { name: 'api-service', status: 'ready', lang: 'TypeScript' },
-              { name: 'frontend-app', status: 'indexing', lang: 'React' },
-            ].map((repo) => (
-              <div key={repo.name} className="flex items-center justify-between rounded-md border p-3">
+      {/* Repositories */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Repositories</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {reposLoading ? (
+            <>
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </>
+          ) : reposData?.results?.length > 0 ? (
+            reposData.results.slice(0, 5).map((repo: any) => (
+              <Link
+                key={repo.id}
+                to={`/app/repositories/${repo.id}`}
+                className="flex items-center justify-between rounded-md border p-3 hover:bg-accent transition-colors"
+              >
                 <div className="flex items-center gap-3">
                   <FolderGit2 className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">{repo.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{repo.lang}</span>
-                  <Badge variant={repo.status === 'ready' ? 'success' : 'warning'}>
+                  <span className="text-xs text-muted-foreground">{repo.total_files} files</span>
+                  <Badge variant={repo.status === 'ready' ? 'success' : repo.status === 'indexing' ? 'warning' : 'secondary'}>
                     {repo.status}
                   </Badge>
                 </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Conversations</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { title: 'How does auth work?', repo: 'my-project', time: '2h ago' },
-              { title: 'Find all API endpoints', repo: 'api-service', time: '1d ago' },
-              { title: 'Explain database schema', repo: 'my-project', time: '2d ago' },
-            ].map((conv) => (
-              <div key={conv.title} className="flex items-center justify-between rounded-md border p-3">
-                <div>
-                  <p className="text-sm font-medium">{conv.title}</p>
-                  <p className="text-xs text-muted-foreground">{conv.repo}</p>
-                </div>
-                <span className="text-xs text-muted-foreground">{conv.time}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+              </Link>
+            ))
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <FolderGit2 className="h-10 w-10 mx-auto mb-2 opacity-30" />
+              <p>No repositories yet</p>
+              <Link to="/app/repositories" className="text-primary text-sm hover:underline">Import your first repository</Link>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

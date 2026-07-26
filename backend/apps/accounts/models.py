@@ -23,6 +23,7 @@ class User(AbstractUser):
     github_username = models.CharField(max_length=255, blank=True, null=True)
     github_access_token = models.TextField(blank=True, null=True)
     avatar_url = models.URLField(blank=True, null=True)
+    is_verified = models.BooleanField(default=False)
     subscription_plan = models.CharField(
         max_length=20,
         choices=SubscriptionPlan.choices,

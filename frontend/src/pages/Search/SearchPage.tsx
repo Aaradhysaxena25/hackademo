@@ -3,9 +3,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Search, FileCode, Code } from 'lucide-react';
+import { searchService } from '@/services/search';
+import { useRepositories } from '@/hooks/useRepositories';
 
 interface SearchResult {
+  chunk_id: string;
   file_path: string;
   symbol_name: string | null;
   chunk_type: string;
@@ -16,39 +20,41 @@ interface SearchResult {
   relevance_score: number;
 }
 
-const mockResults: SearchResult[] = [
-  {
-    file_path: 'src/auth/middleware.py',
-    symbol_name: 'authenticate_request',
-    chunk_type: 'function',
-    content: 'def authenticate_request(request):\n    token = request.headers.get("Authorization")\n    if not token:\n        raise Unauthorized()',
-    language: 'python',
-    start_line: 15,
-    end_line: 25,
-    relevance_score: 0.94,
-  },
-  {
-    file_path: 'src/utils/jwt.py',
-    symbol_name: 'verify_token',
-    chunk_type: 'function',
-    content: 'def verify_token(token: str) -> dict:\n    payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])\n    return payload',
-    language: 'python',
-    start_line: 8,
-    end_line: 15,
-    relevance_score: 0.87,
-  },
-];
-
 export default function SearchPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [queryTime, setQueryTime] = useState(0);
+  const [error, setError] = useState('');
 
-  const handleSearch = () => {
+  const { data: reposData } = useRepositories();
+  const repos = reposData?.results || [];
+
+  const handleSearch = async () => {
     if (!query.trim()) return;
-    // Mock search
-    setResults(mockResults);
-    setSearched(true);
+    if (repos.length === 0) {
+      setError('No repositories available. Import a repository first.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      const res = await searchService.search({
+        query: query.trim(),
+        repository_ids: repos.map((r: any) => r.id),
+        limit: 10,
+      });
+      setResults(res.data.data.results);
+      setQueryTime(res.data.data.query_time_ms);
+      setSearched(true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Search failed.');
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,7 +64,6 @@ export default function SearchPage() {
         <p className="text-muted-foreground">Search your code by meaning, not just keywords</p>
       </div>
 
-      {/* Search Bar */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -70,15 +75,27 @@ export default function SearchPage() {
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           />
         </div>
-        <Button onClick={handleSearch}>Search</Button>
+        <Button onClick={handleSearch} disabled={loading}>
+          {loading ? 'Searching...' : 'Search'}
+        </Button>
       </div>
 
-      {/* Results */}
-      {searched && (
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {loading && (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{results.length} results found</p>
-          {results.map((result, i) => (
-            <Card key={i} className="hover:border-primary/50 transition-colors">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      )}
+
+      {searched && !loading && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {results.length} results found in {queryTime}ms
+          </p>
+          {results.map((result) => (
+            <Card key={result.chunk_id} className="hover:border-primary/50 transition-colors">
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -91,7 +108,7 @@ export default function SearchPage() {
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">{result.chunk_type}</Badge>
                     <span className="text-xs text-muted-foreground">
-                      {Math.round(result.relevance_score * 100)}% match
+                      {Math.round(result.relevance_score * 100)}%
                     </span>
                   </div>
                 </div>
@@ -101,16 +118,19 @@ export default function SearchPage() {
                     <span className="font-mono text-primary">{result.symbol_name}</span>
                   </div>
                 )}
-                <pre className="bg-secondary/50 p-3 rounded text-xs overflow-x-auto font-mono">
+                <pre className="bg-secondary/50 p-3 rounded text-xs overflow-x-auto font-mono max-h-40">
                   {result.content}
                 </pre>
               </CardContent>
             </Card>
           ))}
+          {results.length === 0 && (
+            <p className="text-center py-8 text-muted-foreground">No results found. Try a different query.</p>
+          )}
         </div>
       )}
 
-      {!searched && (
+      {!searched && !loading && (
         <div className="text-center py-16 text-muted-foreground">
           <Search className="h-12 w-12 mx-auto mb-4 opacity-20" />
           <p>Search for code using natural language</p>

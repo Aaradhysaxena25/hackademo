@@ -5,8 +5,11 @@ URL configuration for CodePilot project.
 from django.contrib import admin
 from django.urls import include, path
 
+from apps.common.views import HealthCheckView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/v1/health/", HealthCheckView.as_view(), name="health_check"),
     path("api/v1/accounts/", include("apps.accounts.urls", namespace="accounts")),
     path("api/v1/repositories/", include("apps.repositories.urls", namespace="repositories")),
     path("api/v1/indexing/", include("apps.indexing.urls", namespace="indexing")),

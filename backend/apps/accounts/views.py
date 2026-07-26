@@ -39,6 +39,23 @@ class RegisterView(APIView):
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
 
+        # Send verification email (non-blocking, don't fail registration if email fails)
+        try:
+            from .tokens import generate_verification_token
+            from django.core.mail import send_mail
+
+            token = generate_verification_token(str(user.id))
+            verification_url = f"http://localhost:5173/verify?token={token}"
+            send_mail(
+                subject="Verify your CodePilot AI account",
+                message=f"Verify your email: {verification_url}",
+                from_email="noreply@codepilot.ai",
+                recipient_list=[user.email],
+                fail_silently=True,
+            )
+        except Exception:
+            pass  # Don't block registration on email failure
+
         return Response(
             {
                 "status": "success",
@@ -201,4 +218,102 @@ class ChangePasswordView(APIView):
         return Response(
             {"status": "success", "message": "Password changed successfully."},
             status=status.HTTP_200_OK,
+        )
+
+
+class SendVerificationEmailView(APIView):
+    """
+    POST /api/v1/accounts/auth/verify/send/
+
+    Send a verification email to the authenticated user.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if user.is_verified:
+            return Response(
+                {"status": "success", "message": "Email already verified."}
+            )
+
+        from .tokens import generate_verification_token
+        from django.core.mail import send_mail
+        from django.conf import settings
+
+        token = generate_verification_token(str(user.id))
+        verification_url = f"{request.data.get('frontend_url', 'http://localhost:5173')}/verify?token={token}"
+
+        try:
+            send_mail(
+                subject="Verify your CodePilot AI account",
+                message=f"Click the link to verify your email: {verification_url}",
+                html_message=f"""
+                    <h2>Verify your email</h2>
+                    <p>Click the button below to verify your CodePilot AI account:</p>
+                    <a href="{verification_url}" style="background:#6366f1;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;">
+                        Verify Email
+                    </a>
+                    <p style="margin-top:16px;color:#666;">This link expires in 24 hours.</p>
+                """,
+                from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else "noreply@codepilot.ai",
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            logger.error(f"Failed to send verification email: {e}")
+            return Response(
+                {"status": "error", "message": "Failed to send email. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            {"status": "success", "message": "Verification email sent."}
+        )
+
+
+class VerifyEmailView(APIView):
+    """
+    POST /api/v1/accounts/auth/verify/
+
+    Verify a user's email with the provided token.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token")
+        if not token:
+            return Response(
+                {"status": "error", "message": "Token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .tokens import verify_token
+
+        user_id = verify_token(token)
+        if not user_id:
+            return Response(
+                {"status": "error", "message": "Invalid or expired token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"status": "error", "message": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.is_verified:
+            return Response(
+                {"status": "success", "message": "Email already verified."}
+            )
+
+        user.is_verified = True
+        user.save(update_fields=["is_verified", "updated_at"])
+
+        return Response(
+            {"status": "success", "message": "Email verified successfully."}
         )
