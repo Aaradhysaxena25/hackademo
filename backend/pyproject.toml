@@ -9,6 +9,7 @@ license = {text = "MIT"}
 target-version = "py311"
 line-length = 100
 src = ["."]
+exclude = ["migrations/"]
 
 [tool.ruff.lint]
 select = [

@@ -4,7 +4,6 @@ Token generation for email verification using Django's signing framework.
 
 from django.core import signing
 
-
 VERIFICATION_SALT = "email-verification"
 VERIFICATION_MAX_AGE = 86400  # 24 hours
 

@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from apps.indexing.services.chunker import CodeChunkResult, chunk_file
+from apps.indexing.services.chunker import chunk_file
 from apps.indexing.services.file_filter import FileFilter
 from apps.indexing.services.language_detector import detect_language
 from apps.indexing.services.parser import RepositoryParser

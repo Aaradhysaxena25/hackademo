@@ -18,7 +18,6 @@ from apps.indexing.models import IndexedFile, IndexingJob
 from apps.repositories.models import Repository, RepositoryFile
 
 from .services.chunker import chunk_file
-from .services.language_detector import detect_language
 from .services.parser import RepositoryParser
 
 logger = logging.getLogger(__name__)
@@ -93,7 +92,7 @@ def index_repository_task(self, repository_id: str, repo_path: str | None = None
                     content = f.read()
 
                 # Create RepositoryFile record
-                repo_file = RepositoryFile.objects.create(
+                RepositoryFile.objects.create(
                     repository=repository,
                     file_path=file_entry.path,
                     file_name=file_entry.name,

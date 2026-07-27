@@ -2,7 +2,7 @@
 Tests for the GitHub integration.
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.contrib.auth import get_user_model

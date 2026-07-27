@@ -137,13 +137,10 @@ class SendMessageView(APIView):
 
         # Run RAG pipeline
         try:
-            # Use mock provider if no API key configured
-            from django.conf import settings
-            if settings.OPENAI_API_KEY:
-                provider = get_llm_provider("openai")
-            else:
-                provider = get_llm_provider("mock", response=self._generate_mock_response(user_content, conversation))
+            # Use configured LLM provider (groq for dev, openai for prod)
+            from apps.ai.services.llm_provider import get_default_provider
 
+            provider = get_default_provider()
             pipeline = RAGPipeline(llm_provider=provider)
 
             repository_name = conversation.repository.name if conversation.repository else ""
@@ -231,6 +228,7 @@ class StreamMessageView(APIView):
 
     def post(self, request, pk):
         import json
+
         from django.http import StreamingHttpResponse
 
         conversation = get_object_or_404(Conversation, pk=pk, user=request.user)
@@ -260,11 +258,9 @@ class StreamMessageView(APIView):
         ]
 
         # Set up RAG pipeline
-        from django.conf import settings as django_settings
-        if django_settings.OPENAI_API_KEY:
-            provider = get_llm_provider("openai")
-        else:
-            provider = get_llm_provider("mock", response="This is a streaming mock response. Configure OPENAI_API_KEY for real AI responses.")
+        from apps.ai.services.llm_provider import get_default_provider
+
+        provider = get_default_provider()
 
         pipeline = RAGPipeline(llm_provider=provider)
 

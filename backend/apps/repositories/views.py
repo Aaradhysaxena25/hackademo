@@ -203,9 +203,9 @@ class RepositoryUploadView(APIView):
 
     def post(self, request):
         import os
+        import tarfile
         import tempfile
         import zipfile
-        import tarfile
 
         name = request.data.get("name")
         file = request.FILES.get("file")

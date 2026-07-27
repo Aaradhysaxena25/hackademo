@@ -2,14 +2,15 @@
 Development-specific Django settings for CodePilot.
 """
 
+import os
+
 from .base import *  # noqa: F401, F403
 
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
-# Use SQLite if DATABASE_URL is not set or connection fails
-import os
+# Use SQLite if DATABASE_URL is not set
 if not os.environ.get("DATABASE_URL"):
     DATABASES = {
         "default": {

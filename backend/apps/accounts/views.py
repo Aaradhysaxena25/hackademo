@@ -4,6 +4,8 @@ Views for the accounts app.
 Handles registration, login, profile, and password management.
 """
 
+import logging
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -18,6 +20,8 @@ from .serializers import (
     RegisterSerializer,
     UserSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -41,8 +45,9 @@ class RegisterView(APIView):
 
         # Send verification email (non-blocking, don't fail registration if email fails)
         try:
-            from .tokens import generate_verification_token
             from django.core.mail import send_mail
+
+            from .tokens import generate_verification_token
 
             token = generate_verification_token(str(user.id))
             verification_url = f"http://localhost:5173/verify?token={token}"
@@ -237,9 +242,10 @@ class SendVerificationEmailView(APIView):
                 {"status": "success", "message": "Email already verified."}
             )
 
-        from .tokens import generate_verification_token
-        from django.core.mail import send_mail
         from django.conf import settings
+        from django.core.mail import send_mail
+
+        from .tokens import generate_verification_token
 
         token = generate_verification_token(str(user.id))
         verification_url = f"{request.data.get('frontend_url', 'http://localhost:5173')}/verify?token={token}"

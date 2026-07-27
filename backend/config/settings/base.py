@@ -4,7 +4,6 @@ Base Django settings for CodePilot project.
 Common settings shared across all environments.
 """
 
-import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -171,8 +170,28 @@ CELERY_TASK_TIME_LIMIT = 300  # 5 minutes
 # Redis Configuration
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
-# OpenAI Configuration
+# =============================================================================
+# LLM Configuration
+# =============================================================================
+# LLM_PROVIDER determines which AI provider to use:
+#   "groq"   → Free Groq API (use for development)
+#   "openai" → OpenAI paid API (use for production)
+#   "ollama" → Local Ollama instance
+#   "mock"   → No real AI (testing/demo mode)
+LLM_PROVIDER = env("LLM_PROVIDER", default="mock")
+
+# Groq Configuration (free tier — for development)
+# Get your key at: https://console.groq.com/keys
+GROQ_API_KEY = env("GROQ_API_KEY", default="")
+GROQ_MODEL = env("GROQ_MODEL", default="llama-3.1-8b-instant")
+
+# OpenAI Configuration (paid — for production)
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-4o-mini")
+
+# Ollama Configuration (local)
+OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://localhost:11434")
+OLLAMA_MODEL = env("OLLAMA_MODEL", default="codellama:7b")
 
 # GitHub OAuth Configuration
 GITHUB_CLIENT_ID = env("GITHUB_CLIENT_ID", default="")

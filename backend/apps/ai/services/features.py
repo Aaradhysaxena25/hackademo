@@ -38,14 +38,12 @@ class AIFeatureService:
     """
 
     def __init__(self, llm_provider: LLMProvider | None = None, provider_name: str = "openai"):
-        from django.conf import settings
+        from .llm_provider import get_default_provider
 
         if llm_provider:
             self.llm = llm_provider
-        elif settings.OPENAI_API_KEY:
-            self.llm = get_llm_provider(provider_name)
         else:
-            self.llm = get_llm_provider("mock")
+            self.llm = get_default_provider()
 
     def explain_code(self, chunk_id: str, detail_level: str = "detailed") -> AIFeatureResponse:
         """

@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 
 from apps.core.enums import IndexingStatus, RepositoryStatus
 from apps.embeddings.models import CodeChunk
-from apps.indexing.models import IndexedFile, IndexingJob
+from apps.indexing.models import IndexingJob
 from apps.indexing.tasks import index_repository_task
 from apps.repositories.models import Repository, RepositoryFile
 

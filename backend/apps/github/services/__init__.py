@@ -1,6 +1,6 @@
 """GitHub integration services."""
 
-from .oauth import GitHubOAuthService
 from .api_client import GitHubAPIClient
+from .oauth import GitHubOAuthService
 
 __all__ = ["GitHubOAuthService", "GitHubAPIClient"]

@@ -1,12 +1,18 @@
 """
 LLM Provider abstraction.
 
-Supports OpenAI-compatible APIs and Ollama for local inference.
+Supports: Groq (free dev), OpenAI (production), Ollama (local), Mock (testing).
+
+The active provider is determined by LLM_PROVIDER env var:
+- "groq"   → Free Groq API (development)
+- "openai" → OpenAI paid API (production)
+- "ollama" → Local Ollama inference
+- "mock"   → Testing without any API
 """
 
 import logging
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, Generator
+from typing import Generator
 
 from django.conf import settings
 
@@ -27,8 +33,64 @@ class LLMProvider(ABC):
         pass
 
 
+class GroqProvider(LLMProvider):
+    """
+    Groq API provider (free tier for development).
+
+    Uses the OpenAI-compatible API at https://api.groq.com/openai/v1
+    Free models: llama-3.1-8b-instant, mixtral-8x7b-32768, gemma2-9b-it
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "llama-3.1-8b-instant",
+        max_tokens: int = 2048,
+        temperature: float = 0.1,
+    ):
+        self.api_key = api_key or getattr(settings, "GROQ_API_KEY", "")
+        self.model = model
+        self.base_url = "https://api.groq.com/openai/v1"
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+
+    def _get_client(self):
+        from openai import OpenAI
+
+        return OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+    def generate(self, messages: list[dict], **kwargs) -> str:
+        """Generate a complete response via Groq."""
+        client = self._get_client()
+
+        response = client.chat.completions.create(
+            model=kwargs.get("model", self.model),
+            messages=messages,
+            max_tokens=kwargs.get("max_tokens", self.max_tokens),
+            temperature=kwargs.get("temperature", self.temperature),
+        )
+
+        return response.choices[0].message.content or ""
+
+    def generate_stream(self, messages: list[dict], **kwargs) -> Generator[str, None, None]:
+        """Generate a streaming response via Groq."""
+        client = self._get_client()
+
+        stream = client.chat.completions.create(
+            model=kwargs.get("model", self.model),
+            messages=messages,
+            max_tokens=kwargs.get("max_tokens", self.max_tokens),
+            temperature=kwargs.get("temperature", self.temperature),
+            stream=True,
+        )
+
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+
 class OpenAIProvider(LLMProvider):
-    """OpenAI-compatible API provider."""
+    """OpenAI API provider (production — paid)."""
 
     def __init__(
         self,
@@ -38,7 +100,7 @@ class OpenAIProvider(LLMProvider):
         max_tokens: int = 2048,
         temperature: float = 0.1,
     ):
-        self.api_key = api_key or settings.OPENAI_API_KEY
+        self.api_key = api_key or getattr(settings, "OPENAI_API_KEY", "")
         self.model = model
         self.base_url = base_url
         self.max_tokens = max_tokens
@@ -119,6 +181,8 @@ class OllamaProvider(LLMProvider):
 
     def generate_stream(self, messages: list[dict], **kwargs) -> Generator[str, None, None]:
         """Generate a streaming response via Ollama."""
+        import json
+
         import requests
 
         response = requests.post(
@@ -137,8 +201,6 @@ class OllamaProvider(LLMProvider):
         )
         response.raise_for_status()
 
-        import json
-
         for line in response.iter_lines():
             if line:
                 data = json.loads(line)
@@ -152,6 +214,7 @@ class MockProvider(LLMProvider):
 
     def __init__(self, response: str = "This is a mock AI response."):
         self.response = response
+        self.model = "mock"
 
     def generate(self, messages: list[dict], **kwargs) -> str:
         return self.response
@@ -161,18 +224,25 @@ class MockProvider(LLMProvider):
             yield word + " "
 
 
-def get_llm_provider(provider_name: str = "openai", **kwargs) -> LLMProvider:
+def get_llm_provider(provider_name: str | None = None, **kwargs) -> LLMProvider:
     """
     Factory function to get an LLM provider instance.
 
+    If provider_name is not specified, reads from settings.LLM_PROVIDER env var.
+    Defaults to "groq" for development, "openai" for production.
+
     Args:
-        provider_name: One of 'openai', 'ollama', 'mock'
+        provider_name: One of 'groq', 'openai', 'ollama', 'mock'
         **kwargs: Provider-specific configuration
 
     Returns:
         LLMProvider instance
     """
+    if provider_name is None:
+        provider_name = getattr(settings, "LLM_PROVIDER", "mock")
+
     providers = {
+        "groq": GroqProvider,
         "openai": OpenAIProvider,
         "ollama": OllamaProvider,
         "mock": MockProvider,
@@ -180,6 +250,43 @@ def get_llm_provider(provider_name: str = "openai", **kwargs) -> LLMProvider:
 
     provider_class = providers.get(provider_name)
     if not provider_class:
-        raise ValueError(f"Unknown LLM provider: {provider_name}")
+        raise ValueError(f"Unknown LLM provider: {provider_name}. Choose from: {list(providers.keys())}")
 
     return provider_class(**kwargs)
+
+
+def get_default_provider() -> LLMProvider:
+    """
+    Get the default LLM provider based on environment configuration.
+
+    Priority:
+    1. LLM_PROVIDER explicitly set → use that
+    2. GROQ_API_KEY set (and looks real) → use Groq
+    3. OPENAI_API_KEY set (and looks real) → use OpenAI
+    4. Neither → use Mock
+    """
+    # Check explicit provider setting
+    explicit = getattr(settings, "LLM_PROVIDER", "mock")
+    if explicit == "mock":
+        return MockProvider()
+
+    groq_key = getattr(settings, "GROQ_API_KEY", "")
+    openai_key = getattr(settings, "OPENAI_API_KEY", "")
+
+    # Validate keys look real (not placeholders)
+    def _is_real_key(key: str) -> bool:
+        if not key:
+            return False
+        placeholders = ("your-", "sk-your", "gsk_your", "change-", "")
+        return not any(key.startswith(p) for p in placeholders if p)
+
+    if explicit == "groq" and _is_real_key(groq_key):
+        return GroqProvider(api_key=groq_key)
+    elif explicit == "openai" and _is_real_key(openai_key):
+        return OpenAIProvider(api_key=openai_key)
+    elif _is_real_key(groq_key):
+        return GroqProvider(api_key=groq_key)
+    elif _is_real_key(openai_key):
+        return OpenAIProvider(api_key=openai_key)
+    else:
+        return MockProvider()

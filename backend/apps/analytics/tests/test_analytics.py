@@ -11,7 +11,7 @@ from rest_framework.test import APIClient
 
 from apps.analytics.models import DailyUsageStats, UserActivity
 from apps.analytics.services import ActivityTracker, AnalyticsService
-from apps.chat.models import Conversation, Message
+from apps.chat.models import Conversation
 from apps.repositories.models import Repository
 
 User = get_user_model()

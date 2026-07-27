@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Code, Loader2 } from 'lucide-react';
 import api from '@/services/api';
 
 export default function RegisterPage() {
@@ -56,83 +60,93 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-md p-8 space-y-6">
-        <div className="text-center">
-          <span className="text-3xl">🚀</span>
-          <h1 className="text-2xl font-bold mt-2">Create account</h1>
-          <p className="text-muted-foreground">Get started with CodePilot AI</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-secondary/30 p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <Link to="/" className="inline-flex items-center gap-2">
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+              <Code className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-xl font-bold">CodePilot AI</span>
+          </Link>
         </div>
 
-        {error && (
-          <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
-            {error}
-          </div>
-        )}
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">Create your account</CardTitle>
+            <CardDescription>Get started with CodePilot AI for free</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-4">
+                {error}
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium">First name</label>
-              <input
-                type="text"
-                name="first_name"
-                value={form.first_name}
-                onChange={handleChange}
-                required
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Last name</label>
-              <input
-                type="text"
-                name="last_name"
-                value={form.last_name}
-                onChange={handleChange}
-                required
-                className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium">Email</label>
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              required
-              placeholder="you@example.com"
-              className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Password</label>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              required
-              minLength={8}
-              placeholder="••••••••"
-              className="w-full mt-1 px-3 py-2 border rounded-md bg-background"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary text-primary-foreground py-2 rounded-md font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? 'Creating account...' : 'Create Account'}
-          </button>
-        </form>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">First name</label>
+                  <Input
+                    type="text"
+                    name="first_name"
+                    value={form.first_name}
+                    onChange={handleChange}
+                    required
+                    placeholder="John"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Last name</label>
+                  <Input
+                    type="text"
+                    name="last_name"
+                    value={form.last_name}
+                    onChange={handleChange}
+                    required
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Email</label>
+                <Input
+                  type="email"
+                  name="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  required
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Password</label>
+                <Input
+                  type="password"
+                  name="password"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
+                  minLength={8}
+                  placeholder="Min 8 characters"
+                  autoComplete="new-password"
+                />
+                <p className="text-xs text-muted-foreground">Must include uppercase, number, and special character</p>
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {loading ? 'Creating account...' : 'Create Account'}
+              </Button>
+            </form>
 
-        <p className="text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <Link to="/login" className="text-primary hover:underline">Sign in</Link>
-        </p>
+            <p className="text-center text-sm text-muted-foreground mt-6">
+              Already have an account?{' '}
+              <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link>
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
